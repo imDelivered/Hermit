@@ -17,7 +17,8 @@ fi
 # 1. System Packages
 echo "[1/5] Installing System Prerequisites..."
 sudo apt update -qq
-sudo apt install -y python3 python3-venv python3-full python3-tk python3-libzim curl > /dev/null 2>&1
+# Added cmake and build-essential for compiling llama-cpp-python
+sudo apt install -y python3 python3-venv python3-full python3-tk python3-libzim curl cmake build-essential > /dev/null 2>&1
 echo "✓ System packages installed"
 
 # 2. Virtual Environment
@@ -33,17 +34,23 @@ fi
 echo "[3/5] Installing PyTorch with CUDA support..."
 # We explicitly install the CUDA version. 
 # It's safe to run this even if installed; pip handles caching.
-./venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cu121 > /dev/null 2>&1
+./venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cu121 >> setup.log 2>&1
 echo "✓ PyTorch (CUDA) installed"
 
 # 4. Core Dependencies
 echo "[4/5] Installing Project Dependencies..."
-./venv/bin/pip install -r requirements.txt > /dev/null 2>&1
+./venv/bin/pip install -r requirements.txt >> setup.log 2>&1
 
-echo "[4.5/5] Compiling llama-cpp-python with CUDA..."
-# Force reinstall to ensure CUDA compilation
-CMAKE_ARGS="-DGGML_CUDA=on" ./venv/bin/pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir > /dev/null 2>&1
-echo "✓ llama-cpp-python (CUDA) installed"
+echo "[4.5/5] Compiling llama-cpp-python..."
+if command -v nvidia-smi &> /dev/null; then
+    echo "  -> NVIDIA GPU detected. Building with CUDA support..."
+    CMAKE_ARGS="-DGGML_CUDA=on" ./venv/bin/pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir >> setup.log 2>&1
+    echo "✓ llama-cpp-python (CUDA) installed"
+else
+    echo "  -> No NVIDIA GPU detected. Installing CPU-only version..."
+    ./venv/bin/pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir >> setup.log 2>&1
+    echo "✓ llama-cpp-python (CPU) installed"
+fi
 
 # 5. Check Resources
 echo "[5/5] Checking Resources..."
