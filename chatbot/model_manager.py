@@ -7,7 +7,7 @@ import os
 import sys
 import glob
 from typing import Optional, Dict, List, Callable
-from huggingface_hub import hf_hub_download, list_repo_files
+from huggingface_hub import hf_hub_download, list_repo_files, try_to_load_from_cache
 try:
     from tqdm import tqdm
 except ImportError:
@@ -174,9 +174,9 @@ class ModelManager:
                     
                     # If we are here, we didn't return a match. Continue to next quant preference or download.
 
-        # List files in repo
+        # List files in repo (to find best quantization)
         try:
-            _notify_progress("checking", -1, "")
+            # Note: Don't notify "checking" here - it causes dialog flash for cached models
             files = list_repo_files(repo_id)
             gguf_files = [f for f in files if f.endswith('.gguf')]
             
@@ -198,7 +198,14 @@ class ModelManager:
                 
             print(f"Selected model file: {selected_file}")
             
-            # Get file info for progress display
+            # Check if this file is already in HuggingFace cache (avoid dialog flash)
+            cached_path = try_to_load_from_cache(repo_id, selected_file)
+            if cached_path is not None and not isinstance(cached_path, type):
+                # File is already cached - return silently without showing dialog
+                print(f"Model already cached: {cached_path}")
+                return cached_path
+            
+            # Not cached - need to download. Get file info for progress display
             try:
                 from huggingface_hub import hf_hub_url, get_hf_file_metadata
                 url = hf_hub_url(repo_id=repo_id, filename=selected_file)
@@ -208,12 +215,12 @@ class ModelManager:
             except Exception:
                 size_str = "unknown size"
             
-            # Notify GUI that download is starting
+            # Notify GUI that download is starting (only shown for actual downloads)
             model_name = repo_id.split('/')[-1] if '/' in repo_id else repo_id
             _notify_progress("downloading", 0.0, f"{model_name} ({size_str})")
             print(f"Downloading {model_name} ({size_str})...")
             
-            # Download with default progress bar (terminal only)
+            # Download the model
             path = hf_hub_download(
                 repo_id=repo_id, 
                 filename=selected_file, 
@@ -221,7 +228,7 @@ class ModelManager:
             )
             
             _notify_progress("ready", 1.0, size_str)
-            print(f"Model available at: {path}")
+            print(f"Model downloaded to: {path}")
             return path
             
         except Exception as e:
