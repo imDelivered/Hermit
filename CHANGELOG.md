@@ -8,8 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.3.0] - 2026-01-08
 
+### Added
+- **GBNF JSON Grammar Enforcement**: New `grammar_utils.py` module provides GBNF grammars that force LLMs to output strictly valid JSON. This eliminates issues with conversational filler, Markdown code blocks, and trailing commas that plagued small models.
+  - `get_json_grammar()`: Returns a grammar that enforces valid JSON objects or arrays.
+  - `get_array_grammar()`: Enforces array-only output.
+  - `get_object_grammar()`: Enforces object-only output.
+
 ### Fixed
 - **HuggingFace Hub Compatibility**: Fixed crash `unexpected keyword argument 'tqdm_class'` by removing the deprecated argument in `model_manager.py`.
+- **JSON Parsing Reliability**: Refactored `local_inference()` in `joints.py` to use GBNF grammar constraints. All Joint classes now use `use_json_grammar=True` for reliable structured output.
 
 ### Changed
 - **Project Rename**: Renamed project from "KiwixRAG" to "**VaultRAG**" to better reflect its function as a secure, offline knowledge vault.

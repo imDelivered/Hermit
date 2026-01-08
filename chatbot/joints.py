@@ -19,6 +19,7 @@ from urllib.error import URLError
 
 from chatbot import config
 from chatbot.model_manager import ModelManager
+from chatbot.grammar_utils import get_json_grammar, get_object_grammar, get_array_grammar
 
 
 def debug_print(joint_name: str, msg: str):
@@ -80,9 +81,20 @@ def extract_json_from_text(text: str) -> Any:
     raise ValueError("No valid JSON found in response")
 
 
-def local_inference(model: str, prompt: str, temperature: float = 0.0, timeout: int = 5) -> str:
+def local_inference(model: str, prompt: str, temperature: float = 0.0, timeout: int = 5, use_json_grammar: bool = False) -> str:
     """
     Run local inference using ModelManager.
+    
+    Args:
+        model: Model repo ID
+        prompt: The prompt to send
+        temperature: Sampling temperature
+        timeout: Request timeout (not used for local, kept for compat)
+        use_json_grammar: If True, enforce valid JSON output using GBNF grammar.
+                          This prevents conversational filler and invalid JSON.
+    
+    Returns:
+        The model's response text.
     """
     try:
         # Use configured context size (default 16384)
@@ -97,12 +109,24 @@ def local_inference(model: str, prompt: str, temperature: float = 0.0, timeout: 
 
         llm = ModelManager.get_model(model, n_ctx=n_ctx)  # Shared instance
         
+        # Build completion kwargs
+        completion_kwargs = {
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": 1024
+        }
+        
+        # Add grammar constraint if requested
+        if use_json_grammar:
+            grammar = get_json_grammar()
+            if grammar:
+                completion_kwargs["grammar"] = grammar
+                debug_print("INFERENCE", "Using GBNF JSON grammar constraint")
+            else:
+                debug_print("INFERENCE", "JSON grammar unavailable, falling back to unconstrained")
+        
         # Use chat completion for instruction-tuned models
-        response = llm.create_chat_completion(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-            max_tokens=1024
-        )
+        response = llm.create_chat_completion(**completion_kwargs)
         
         return response['choices'][0]['message']['content']
     except Exception as e:
@@ -113,6 +137,7 @@ def local_inference(model: str, prompt: str, temperature: float = 0.0, timeout: 
              try:
                  prompt = prompt[:4000] + "...(truncated)"
                  llm = ModelManager.get_model(model, n_ctx=n_ctx)
+                 # Retry without grammar to maximize chances of success
                  response = llm.create_chat_completion(
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=512
@@ -177,7 +202,7 @@ class EntityExtractorJoint:
     """
 
         try:
-            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT)
+            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT, use_json_grammar=True)
             debug_print("JOINT1:ENTITY", f"Raw response: {response[:300]}...")
             
             # Use robust extractor
@@ -271,7 +296,7 @@ class EntityExtractorJoint:
         """
         
         try:
-            response = local_inference(self.model, prompt, temperature=0.3, timeout=config.JOINT_TIMEOUT)
+            response = local_inference(self.model, prompt, temperature=0.3, timeout=config.JOINT_TIMEOUT, use_json_grammar=True)
             debug_print("JOINT1:EXPAND", f"Raw response: {response[:200]}...")
             
             suggestions = extract_json_from_text(response)
@@ -388,7 +413,7 @@ class ArticleScorerJoint:
         ]"""
 
         try:
-            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT)
+            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT, use_json_grammar=True)
             debug_print("JOINT2:SCORER", f"Raw response: {response[:200]}...")
             
             # Use robust extractor
@@ -594,7 +619,7 @@ Return ONLY a JSON array:
 
         try:
             # Use longer timeout for chunk filtering since it processes more text
-            response = local_inference(self.model, prompt, self.temperature, timeout=config.JOINT_TIMEOUT + 5)
+            response = local_inference(self.model, prompt, self.temperature, timeout=config.JOINT_TIMEOUT + 5, use_json_grammar=True)
             debug_print("JOINT3:FILTER", f"Raw response: {response[:200]}...")
             
             # Robust JSON Lines parsing helper
@@ -806,7 +831,7 @@ Example:
 JSON Response:"""
 
         try:
-            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT)
+            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT, use_json_grammar=True)
             debug_print("JOINT4:FACTS", f"Raw response: {response[:200]}...")
             
             # Use extract_json_from_text from the module scope
@@ -879,7 +904,7 @@ Return JSON ONLY:
 """
         
         try:
-            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT)
+            response = local_inference(self.model, prompt, self.temperature, config.JOINT_TIMEOUT, use_json_grammar=True)
             debug_print("JOINT4:VERIFY", f"Raw response: {response[:200]}...")
             
             result = extract_json_from_text(response)
