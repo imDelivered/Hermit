@@ -14,7 +14,13 @@ offline ai chatbot for wikipedia and zim archives. no cloud, no api keys, no tra
 
 ### what hermit does differently
 
-instead of trusting a single vector search, hermit chains multiple model calls together. each one checks the work of the previous step. the system extracts entities from your question, predicts which articles are relevant, scores them for actual relevance, filters down to the useful paragraphs, and only then generates an answer. it's slower, but the answers are grounded in real content.
+i built a synergistic architecture that utilizes models of various types and sizes to structure reasoning pipelines. At an architectural level, that’s the core philosophy. But what have I actually built with it?
+
+I call it "Hermit."
+
+It is a 100% offline .zim data extraction and context injection tool for answering queries. All you need to know is that at the end of the chain (I call them "Joints"), the final model gets handed the best data it found in your collection of .zim files.
+
+Why .zim files? Because there is a plethora of available collections containing incredibly useful information through sources like Kiwix. I personally use this in parallel with  research papers, Wikipedia, Project Gutenberg, Stack Overflow, and medical, etc... all equating to about 300gb of data for local model context injection.   
 
 for details on how the architecture works, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
