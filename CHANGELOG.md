@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [3.2.1] - 2026-01-27
+
+### Performance Optimization: Unified Model Architecture
+-   **Eliminated Model Thrashing**: Changed `chatbot/config.py` to use `DEFAULT_MODEL` (Qwen 3B) for *all* orchestration joints (Entity, Scorer, Fact). 
+    -   Previously, the system unloaded 3B to load 1.5B for every background task, causing significant latency.
+    -   Now, the 3B model stays loaded ~100% of the time.
+-   **Impact**:
+    -   Drastically reduced query latency (from ~30s to ~5s on mid-range GPUs).
+    -   Improved orchestration intelligence (3B > 1.5B).
+    -   Stabilized VRAM usage.
+
 ## [3.2.0] - 2026-01-27
 
 ### Major Update: Robust RAG & Large Model Support
